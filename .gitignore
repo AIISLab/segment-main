@@ -1,0 +1,71 @@
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.ipynb_checkpoints
+
+# Environment
+.env
+.venv/
+venv/
+env/
+*.env
+*.sh~
+
+# Jupyter
+*.ipynb
+.ipynb_checkpoints/
+
+# PyTorch / Checkpoints
+*.pth
+*.pt
+*.bin
+runs/
+logs/
+checkpoints/
+*.ckpt
+
+# Transformers / HuggingFace cache
+~/.cache/
+**/.cache/
+*.h5
+*.npz
+
+# Datasets
+data/
+*.zip
+*.tar.gz
+
+# VSCode
+.vscode/
+.settings/
+
+# Test outputs
+*.log
+*.out
+*.tmp
+*.npy
+
+# Docker / Conda
+*.pid
+*.lock
+*.db
+*.sqlite
+*.yaml
+
+# Packaging
+dist/
+build/
+*.egg-info/
+
+# OS + Backup Files
+*.bak
+*.swp
+*.swo
+*~

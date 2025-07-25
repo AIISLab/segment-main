@@ -1,0 +1,5 @@
+transformers>=4.39
+datasets
+torch>=2.0
+torchvision
+opencv-python
