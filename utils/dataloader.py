@@ -31,16 +31,16 @@ def get_loaders(data_root="data", label_csv="class_dict.csv", include_test=False
         train_set,
         batch_size=CFG.batch_size,
         shuffle=True,
-        num_workers=4,
-        pin_memory=True
+        num_workers=0,
+        pin_memory=False
     )
 
     val_loader = DataLoader(
         val_set,
         batch_size=CFG.batch_size,
         shuffle=False,
-        num_workers=4,
-        pin_memory=True
+        num_workers=0,
+        pin_memory=False
     )
 
     if include_test:
@@ -49,8 +49,8 @@ def get_loaders(data_root="data", label_csv="class_dict.csv", include_test=False
             test_set,
             batch_size=CFG.batch_size,
             shuffle=False,
-            num_workers=4,
-            pin_memory=True
+            num_workers=0,
+            pin_memory=False
         )
         return train_loader, val_loader, test_loader
 
