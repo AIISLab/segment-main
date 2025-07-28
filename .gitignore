@@ -42,6 +42,8 @@ data/
 *.zip
 *.tar.gz
 
+tomato/
+
 # VSCode
 .vscode/
 .settings/

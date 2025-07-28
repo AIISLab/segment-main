@@ -9,7 +9,7 @@ from config import CFG
 from utils.labels import load_class_map
 
 class SegmentationDataset(Dataset):
-    def __init__(self, root_dir, split="train", label_csv="labels.csv", transform=None):
+    def __init__(self, root_dir, split="train", label_csv="class_dict.csv", transform=None):
         self.image_dir = os.path.join(root_dir, split, "images")
         self.mask_dir  = os.path.join(root_dir, split, "masks")
         self.image_filenames = sorted(os.listdir(self.image_dir))
