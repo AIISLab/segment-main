@@ -5,7 +5,7 @@ CFG = SimpleNamespace(
     # General
     project_name = "segmentation-pipeline",
     seed = 42,
-    device = "cuda" if torch.cuda.is_available() else "cpu",
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
 
     # Model (default)
     architecture = "segformer",

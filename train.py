@@ -62,6 +62,8 @@ for epoch in range(CFG.epochs):
 
         optimizer.zero_grad()
         outputs = model(images).logits
+        # Example: assuming outputs is [B, C, H, W] and masks is [B, H, W]
+        outputs = nn.functional.interpolate(outputs, size=masks.shape[-2:], mode="bilinear", align_corners=False)
         loss = loss_fn(outputs, masks)
         loss.backward()
         optimizer.step()
@@ -78,6 +80,7 @@ for epoch in range(CFG.epochs):
             for images, masks in tqdm(val_loader, desc="Validating"):
                 images, masks = images.to(device), masks.to(device)
                 outputs = model(images).logits
+                outputs = nn.functional.interpolate(outputs, size=masks.shape[-2:], mode="bilinear", align_corners=False)
                 loss = loss_fn(outputs, masks)
                 val_loss.append(loss.item())
 
