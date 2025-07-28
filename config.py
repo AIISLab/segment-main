@@ -32,7 +32,7 @@ CFG = SimpleNamespace(
 
     # Data paths
     dataset_root = "data",  # default, can be overridden via CLI
-    label_csv = "labels.csv",  # class-color mapping CSV inside dataset root
+    label_csv = "class_dict.csv",  # class-color mapping CSV inside dataset root
 
     # Logging / Outputs
     output_dir = "./results/",

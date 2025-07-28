@@ -4,7 +4,7 @@ from config import CFG
 
 def load_class_map(label_csv_path):
     """
-    Loads a class map from labels.csv and optionally updates CFG.num_classes.
+    Loads a class map from class_dict.csv and optionally updates CFG.num_classes.
 
     Returns:
         class_map (dict): {(r, g, b): class_id}
@@ -16,20 +16,20 @@ def load_class_map(label_csv_path):
     df = pd.read_csv(label_csv_path)
 
     # Validate required columns
-    required = {"class_id", "class_name", "r", "g", "b"}
+    required = {"name", "r", "g", "b"}
     if not required.issubset(df.columns):
-        raise ValueError(f"labels.csv must contain columns: {required}")
+        raise ValueError(f"class_dict.csv must contain columns: {required}")
 
-    # Build RGB-to-ID map
+    # Build RGB-to-ID map using row index as class_id
     class_map = {
-        (row.r, row.g, row.b): int(row.class_id)
-        for _, row in df.iterrows()
+        (int(row.r), int(row.g), int(row.b)): idx
+        for idx, row in df.iterrows()
     }
 
     # Build ID-to-name map
     class_names = {
-        int(row.class_id): row.class_name
-        for _, row in df.iterrows()
+        idx: row.name
+        for idx, row in df.iterrows()
     }
 
     # Optionally update CFG.num_classes

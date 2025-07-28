@@ -10,7 +10,7 @@ def get_transforms():
         T.ToTensor()
     ])
 
-def get_loaders(data_root="data", label_csv="labels.csv", include_test=False):
+def get_loaders(data_root="data", label_csv="class_dict.csv", include_test=False):
     """
     Returns train, val, and optionally test DataLoaders.
 
