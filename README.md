@@ -28,8 +28,8 @@ For evaluate.py only:
 
 Example of how to run train.py:
 
-  python3 train.py --data_root tomato/segformer --architecture segformer
+  `python3 train.py --data_root tomato/segformer --architecture segformer`
 
 There is a util script named format_dataset.py which can be run on a dataset folder to format it for a particular model architecture. Here is an example of that code: 
 
-  python3 utils/format_dataset.py --data_root tomato --architecture setr
+  `python3 utils/format_dataset.py --data_root tomato --architecture setr`
