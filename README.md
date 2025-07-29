@@ -31,7 +31,8 @@ python3 evaluate.py --data_root tomato/segformer --architecture segformer --weig
 Vision Transformers
   - Segformer
   - Mask2Former
-  - SETR  
+  - SETR
+
 Convolutional Neural Networks
   - ...
   - ...
