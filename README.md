@@ -1,35 +1,51 @@
-Included Architectures:
-  SegFormer
-  Mask2Former
-  SETR
+# 🧠 Semantic Segmentation Training Suite
 
-Your dataset folder must include the following folders containing your rgb images and segmentation masks:
-  \\train
-  \\train_labels
-  \\val
-  val_labels
-  test
-  test_labels
+A modular framework for training and evaluating semantic segmentation models using transformer-based architectures.
 
-It also must include a class_dict.csv which can be formatted as such: 
+---
 
-  name,r,g,b
-  Sunlit Leaves,0,255,0
-  Noise,165,42,42
+### Dataset Requirements (placed within repo root):
+your_dataset/
+├── train/
+├── train_labels/
+├── val/
+├── val_labels/
+├── test/
+├── test_labels/
+└── class_dict.csv
 
-Optional CLI arguments for running train.py and evaluate.py are as follows:
+## 🚀 Getting Started
 
-  --architecture (segformer,mask2former,setr....)
-  --data_root (your dataset folder name - i.e. tomato)
+### Train a Model
 
-For evaluate.py only:
+```bash
+python3 train.py --data_root tomato/segformer --architecture segformer
+```
 
-  --weights (path to your saved .pt file)
+### Evaluate a trained Model
 
-Example of how to run train.py:
+```bash
+python3 evaluate.py --data_root tomato/segformer --architecture segformer --weights weights/your_model.pt
+```
+Use the dataset formatting utility to prepare your dataset directory structure and ensure compatibility with the model architecture:
 
-  `python3 train.py --data_root tomato/segformer --architecture segformer`
+```bash
+python3 utils/format_dataset.py --data_root tomato --architecture setr
+```
+### Current Compatible Architectures:
+Vision Transformers
+  - Segformer
+  - Mask2Former
+  - SETR
+Convolutional Neural Networks
+  - ...
+  - ...
 
-There is a util script named format_dataset.py which can be run on a dataset folder to format it for a particular model architecture. Here is an example of that code: 
+### 🧾 Training / Evaluation Command-Line Arguments
 
-  `python3 utils/format_dataset.py --data_root tomato --architecture setr`
+| Argument         | Description                                  | Example                                 |
+|------------------|----------------------------------------------|-----------------------------------------|
+| `--architecture` | Model architecture to use                    | `segformer`, `mask2former`, `setr`      |
+| `--data_root`    | Path to dataset root folder                  | `tomato/segformer`                      |
+| `--weights`      | (Evaluation only) Path to model weights `.pt` file | `weights/best_model.pt`           |
+
