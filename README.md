@@ -4,9 +4,9 @@ Included Architectures:
   SETR
 
 Your dataset folder must include the following folders containing your rgb images and segmentation masks:
-  train
-  train_labels
-  val
+  \\train
+  \\train_labels
+  \\val
   val_labels
   test
   test_labels
