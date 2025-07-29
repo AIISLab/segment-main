@@ -1,6 +1,6 @@
 # 🧠 Semantic Segmentation Training Suite
 
-A modular framework for training and evaluating semantic segmentation models using transformer-based architectures.
+A modular framework for training and evaluating semantic segmentation models using various Convolutional Neural Network and Vision Transformer architectures.
 
 ---
 
