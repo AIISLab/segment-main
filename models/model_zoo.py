@@ -1,5 +1,3 @@
-# models/model_zoo.py
-
 MODEL_ZOO = {
     "segformer": {
         "default_model": "nvidia/segformer-b3-finetuned-ade-512-512",

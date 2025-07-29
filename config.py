@@ -1,6 +1,8 @@
 from types import SimpleNamespace
 from models.model_zoo import MODEL_ZOO
 import torch
+import csv
+from pathlib import Path
 
 arch = "segformer"
 defaults = MODEL_ZOO[arch]
@@ -10,7 +12,7 @@ CFG = SimpleNamespace(
     project_name = "segmentation-pipeline",
     seed = 42,
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
-    
+
     # Model
     architecture = arch,
     model_name = defaults["default_model"],
@@ -48,3 +50,4 @@ CFG = SimpleNamespace(
     show_sample_predictions = True,
     num_eval_samples = 5
 )
+
