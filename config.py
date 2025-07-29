@@ -10,7 +10,7 @@ CFG = SimpleNamespace(
     project_name = "segmentation-pipeline",
     seed = 42,
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
-
+    
     # Model
     architecture = arch,
     model_name = defaults["default_model"],
@@ -22,11 +22,11 @@ CFG = SimpleNamespace(
     freeze_encoder = False,
 
     # Input
-    image_size = (512, 512),
+    image_size = defaults["image_size"],
 
     # Training
     epochs = 20,
-    batch_size = 8,
+    batch_size = 1,
     learning_rate = 5e-5,
     weight_decay = 1e-4,
     val_every = 1,
