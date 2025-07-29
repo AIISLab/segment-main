@@ -35,41 +35,55 @@ CFG.label_csv = args.label_csv
 torch.manual_seed(CFG.seed)
 device = CFG.device
 
-model = get_model(CFG).to(device)
+model = get_model().to(device)
 model.load_state_dict(torch.load(args.weights, map_location=device))
+print("[INFO] Loaded model weights from:", args.weights)
 model.eval()
 
 _, val_loader = get_loaders(CFG.dataset_root, CFG.label_csv)
 
 # ------------------ EVALUATION ------------------
 
-all_preds = []
-all_targets = []
+flat_preds = []
+flat_targets = []
+all_preds_tensor = []
+all_targets_tensor = []
 
 with torch.no_grad():
     for images, masks in tqdm(val_loader, desc="Evaluating"):
         images, masks = images.to(device), masks.to(device)
         outputs = model(images).logits
         outputs = F.interpolate(outputs, size=masks.shape[-2:], mode="bilinear", align_corners=False)
-        preds = outputs.argmax(dim=1)  # shape: [B, H, W]
+        preds = outputs.argmax(dim=1)  # [B, H, W]
 
-        all_preds.extend(preds.cpu().numpy().reshape(-1))
-        all_targets.extend(masks.cpu().numpy().reshape(-1))
+        flat_preds.extend(preds.cpu().numpy().reshape(-1))
+        flat_targets.extend(masks.cpu().numpy().reshape(-1))
 
-# ------------------ METRICS ------------------
+        all_preds_tensor.append(preds.cpu())
+        all_targets_tensor.append(masks.cpu())
 
-# Filter out ignore index
-all_preds = np.array(all_preds)
-all_targets = np.array(all_targets)
-mask = all_targets != CFG.ignore_index
-all_preds = all_preds[mask]
-all_targets = all_targets[mask]
+# ------------------ FLATTENED METRICS ------------------
 
-acc = accuracy_score(all_targets, all_preds)
-prec = precision_score(all_targets, all_preds, average="macro", zero_division=0)
-rec = recall_score(all_targets, all_preds, average="macro", zero_division=0)
-f1 = f1_score(all_targets, all_preds, average="macro", zero_division=0)
-iou = iou_score(all_preds, all_targets, CFG.num_classes)
+flat_preds = np.array(flat_preds)
+flat_targets = np.array(flat_targets)
+mask = flat_targets != CFG.ignore_index
+flat_preds = flat_preds[mask]
+flat_targets = flat_targets[mask]
+
+acc = accuracy_score(flat_targets, flat_preds)
+prec = precision_score(flat_targets, flat_preds, average="macro", zero_division=0)
+rec = recall_score(flat_targets, flat_preds, average="macro", zero_division=0)
+f1 = f1_score(flat_targets, flat_preds, average="macro", zero_division=0)
+
+# ------------------ TENSOR METRICS ------------------
+
+# Stack [B, H, W] tensors
+all_preds_tensor = torch.cat(all_preds_tensor, dim=0)
+all_targets_tensor = torch.cat(all_targets_tensor, dim=0)
+
+iou = iou_score(all_preds_tensor, all_targets_tensor, CFG.num_classes, ignore_index=CFG.ignore_index)
+
+# ------------------ RESULTS ------------------
 
 print("\n[Evaluation Results]")
 print(f"Accuracy:  {acc:.4f}")

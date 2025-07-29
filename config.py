@@ -28,10 +28,11 @@ CFG = SimpleNamespace(
 
     # Training
     epochs = 20,
-    batch_size = 1,
+    batch_size = 16,
     learning_rate = 5e-5,
     weight_decay = 1e-4,
     val_every = 1,
+    patience = 5,
 
     # Loss
     use_dice_loss = False,

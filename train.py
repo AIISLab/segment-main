@@ -52,6 +52,7 @@ def loss_fn(pred, target):
 # ------------------ TRAINING ------------------
 
 best_val_loss = float("inf")
+no_improve_counter = 0
 
 for epoch in range(CFG.epochs):
     model.train()
@@ -90,6 +91,14 @@ for epoch in range(CFG.epochs):
         # Save best checkpoint
         if avg_val_loss < best_val_loss:
             best_val_loss = avg_val_loss
-            checkpoint_path = os.path.join(CFG.output_dir, f"{CFG.project_name}_best.pt")
+            no_improve_counter = 0  # reset counter
+            checkpoint_path = os.path.join(CFG.output_dir, f"{CFG.project_name}_{CFG.architecture}_best.pt")
             torch.save(model.state_dict(), checkpoint_path)
             print(f"[Checkpoint] Saved best model to {checkpoint_path}")
+        else:
+            no_improve_counter += 1
+            print(f"[Early Stop] No improvement for {no_improve_counter}/{CFG.patience} rounds")
+
+        if no_improve_counter >= CFG.patience:
+            print("[Early Stop] Validation loss did not improve, stopping training.")
+            break

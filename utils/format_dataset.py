@@ -23,15 +23,15 @@ def resize_and_copy_image(src_path: Path, dst_path: Path, size):
     except Exception as e:
         print(f"[!] Failed to resize {src_path}: {e}")
 
-def main(input_dir, arch):
-    input_dir = Path(input_dir).resolve()
+def main(data_root, arch):
+    data_root = Path(data_root).resolve()
     arch = arch.lower()
 
     if arch not in MODEL_ZOO:
         raise ValueError(f"[!] Unknown architecture: {arch}")
 
     image_size = MODEL_ZOO[arch].get("image_size", (512, 512))
-    output_dir = input_dir / arch
+    output_dir = data_root / arch
 
     if output_dir.exists():
         print(f"[!] Output directory already exists: {output_dir}")
@@ -41,7 +41,7 @@ def main(input_dir, arch):
 
     # Copy and resize each image/mask directory
     for subfolder in ["train", "train_labels", "val", "val_labels", "test", "test_labels"]:
-        src_folder = input_dir / subfolder
+        src_folder = data_root / subfolder
         dst_folder = output_dir / subfolder
 
         if not src_folder.exists():
@@ -54,7 +54,7 @@ def main(input_dir, arch):
                 resize_and_copy_image(src_file, dst_file, image_size)
 
     # Copy class_dict.csv as-is
-    class_csv = input_dir / "class_dict.csv"
+    class_csv = data_root / "class_dict.csv"
     if class_csv.exists():
         shutil.copy(class_csv, output_dir / "class_dict.csv")
 
@@ -66,4 +66,4 @@ if __name__ == "__main__":
     parser.add_argument("--architecture", type=str, required=True, help="Architecture name (e.g., segformer, setr, mask2former)")
     args = parser.parse_args()
 
-    main(args.input_dir, args.architecture)
+    main(args.data_root, args.architecture)

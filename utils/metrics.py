@@ -1,16 +1,30 @@
 import torch
 import torch.nn.functional as F
+import numpy as np
 
 def one_hot_encode(mask, num_classes, ignore_index=None):
+    if mask.ndim == 2:
+        # Single image, no batch dim
+        mask = mask.unsqueeze(0)  # [H, W] → [1, H, W]
+    elif mask.ndim != 3:
+        raise ValueError(f"Expected mask of shape [B, H, W], but got {mask.shape}")
+
     B, H, W = mask.shape
     one_hot = F.one_hot(mask.clamp(min=0), num_classes=num_classes).permute(0, 3, 1, 2).float()
+
     if ignore_index is not None:
         ignore_mask = (mask == ignore_index).unsqueeze(1)
         one_hot *= ~ignore_mask
+
     return one_hot
 
+
 def dice_coef(pred, target, num_classes, ignore_index=None, smooth=1e-6):
-    pred = torch.argmax(pred, dim=1)
+    if isinstance(pred, np.ndarray):
+        pred = torch.from_numpy(pred)
+    if pred.ndim == 4 and pred.shape[1] > 1:
+        pred = torch.argmax(pred, dim=1)
+
     pred_one_hot = one_hot_encode(pred, num_classes, ignore_index)
     target_one_hot = one_hot_encode(target, num_classes, ignore_index)
 
@@ -21,7 +35,14 @@ def dice_coef(pred, target, num_classes, ignore_index=None, smooth=1e-6):
     return dice.mean()
 
 def iou_score(pred, target, num_classes, ignore_index=None, smooth=1e-6):
-    pred = torch.argmax(pred, dim=1)
+    if isinstance(pred, np.ndarray):
+        pred = torch.from_numpy(pred)
+    if isinstance(target, np.ndarray):
+        target = torch.from_numpy(target)
+
+    if pred.ndim == 4 and pred.shape[1] > 1:
+        pred = torch.argmax(pred, dim=1)
+
     pred_one_hot = one_hot_encode(pred, num_classes, ignore_index)
     target_one_hot = one_hot_encode(target, num_classes, ignore_index)
 
@@ -33,11 +54,19 @@ def iou_score(pred, target, num_classes, ignore_index=None, smooth=1e-6):
 
 def evaluate_metrics(pred, target, num_classes, ignore_index=None, smooth=1e-6):
     """
-    pred: logits [B, C, H, W]
+    pred: logits [B, C, H, W] or class predictions [B, H, W]
     target: [B, H, W]
     Returns: dict with accuracy, precision, recall, f1, iou
     """
-    pred_labels = torch.argmax(pred, dim=1)  # [B, H, W]
+    if isinstance(pred, np.ndarray):
+        pred = torch.from_numpy(pred)
+    if isinstance(target, np.ndarray):
+        target = torch.from_numpy(target)
+
+    if pred.ndim == 4 and pred.shape[1] > 1:
+        pred_labels = torch.argmax(pred, dim=1)
+    else:
+        pred_labels = pred
 
     pred_one_hot = one_hot_encode(pred_labels, num_classes, ignore_index)
     target_one_hot = one_hot_encode(target, num_classes, ignore_index)
@@ -51,8 +80,7 @@ def evaluate_metrics(pred, target, num_classes, ignore_index=None, smooth=1e-6):
     recall    = (tp + smooth) / (tp + fn + smooth)
     f1        = (2 * precision * recall + smooth) / (precision + recall + smooth)
     accuracy  = (tp + tn + smooth) / (tp + tn + fp + fn + smooth)
-
-    iou = (tp + smooth) / (tp + fp + fn + smooth)
+    iou       = (tp + smooth) / (tp + fp + fn + smooth)
 
     return {
         "accuracy": accuracy.mean().item(),
