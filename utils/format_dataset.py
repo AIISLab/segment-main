@@ -62,7 +62,7 @@ def main(input_dir, arch):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--input_dir", type=str, required=True, help="Path to the dataset folder (e.g., data/tomato)")
+    parser.add_argument("--data_root", type=str, required=True, help="Path to the dataset folder (e.g., data/tomato)")
     parser.add_argument("--architecture", type=str, required=True, help="Architecture name (e.g., segformer, setr, mask2former)")
     args = parser.parse_args()
 
