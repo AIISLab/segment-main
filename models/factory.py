@@ -2,10 +2,15 @@ from config import CFG
 
 # Supported architectures
 VALID_ARCHS = {
+    # ViT-based
     "segformer": "vit.segformer",
     "setr": "vit.setr",
     "mask2former": "vit.mask2former",
-    "unet": "cnn.unet",  # Example CNN fallback
+    
+    # CNN-based
+    "deeplabv3": "cnn.deeplabv3",
+    "fcn": "cnn.fcn",
+    "pspnet": "cnn.pspnet",
 }
 
 def get_model():
@@ -20,7 +25,8 @@ def get_model():
     module = __import__(f"models.{module_path}", fromlist=["get_model_func"])
 
     # Convention: every model file defines a get_<model>_model(config) function
-    if hasattr(module, f"get_{CFG.architecture}_model"):
-        return getattr(module, f"get_{CFG.architecture}_model")(CFG)
+    func_name = f"get_{CFG.architecture}_model"
+    if hasattr(module, func_name):
+        return getattr(module, func_name)(CFG)
     else:
-        raise ImportError(f"`get_{CFG.architecture}_model()` not found in {module_path}.py")
+        raise ImportError(f"`{func_name}()` not found in {module_path}.py")
