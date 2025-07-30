@@ -50,6 +50,6 @@ CFG = SimpleNamespace(
 
     # Evaluation
     show_sample_predictions = True,
-    num_eval_samples = 5
+    num_eval_samples = 20
 )
 

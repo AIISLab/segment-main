@@ -30,6 +30,7 @@ runs/
 logs/
 checkpoints/
 *.ckpt
+results/
 
 # Transformers / HuggingFace cache
 ~/.cache/

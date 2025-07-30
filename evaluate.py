@@ -11,26 +11,19 @@ from utils.helpers import get_logits
 from utils.cli import parse_args
 from tqdm import tqdm
 import numpy as np
+from datetime import datetime
+from utils.visualization import save_mask, save_overlay, load_palette_from_csv
 
 os.environ["TRANSFORMERS_NO_TF"] = "1"
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
 # ------------------ CLI ARGUMENTS ------------------
-
-def parse_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--architecture", type=str, default=CFG.architecture)
-    parser.add_argument("--model_name", type=str, default=CFG.model_name)
-    parser.add_argument("--data_root", type=str, default=CFG.dataset_root)
-    parser.add_argument("--label_csv", type=str, default=CFG.label_csv)
-    parser.add_argument("--weights", type=str, required=True, help="Path to model weights (.pt)")
-    return parser.parse_args()
-
 args = parse_args()
 CFG.architecture = args.architecture
 CFG.model_name = args.model_name
 CFG.dataset_root = args.data_root
 CFG.label_csv = args.label_csv
+CFG.weights = args.weights
 
 # ------------------ SETUP ------------------
 
@@ -38,11 +31,23 @@ torch.manual_seed(CFG.seed)
 device = CFG.device
 
 model = get_model().to(device)
-model.load_state_dict(torch.load(args.weights, map_location=device))
-print("[INFO] Loaded model weights from:", args.weights)
+model.load_state_dict(torch.load(CFG.weights, map_location=device))
+print("[INFO] Loaded model weights from:", CFG.weights)
 model.eval()
 
 _, val_loader = get_loaders(CFG.dataset_root, CFG.label_csv)
+csv_path = os.path.join(CFG.dataset_root, CFG.label_csv)
+palette = load_palette_from_csv(csv_path)
+
+# Create output folders
+# Generate date string
+today = datetime.now().strftime("%Y-%m-%d")
+
+# Build output paths
+mask_dir = os.path.join(CFG.output_dir, CFG.architecture, today, "masks")
+overlay_dir = os.path.join(CFG.output_dir, CFG.architecture, today, "overlays")
+os.makedirs(mask_dir, exist_ok=True)
+os.makedirs(overlay_dir, exist_ok=True)
 
 # ------------------ EVALUATION ------------------
 
@@ -51,8 +56,10 @@ flat_targets = []
 all_preds_tensor = []
 all_targets_tensor = []
 
+sample_count = 0
+
 with torch.no_grad():
-    for images, masks in tqdm(val_loader, desc="Evaluating"):
+    for i, (images, masks) in enumerate(tqdm(val_loader, desc="Evaluating")):
         images, masks = images.to(device), masks.to(device)
         outputs = get_logits(model(images))
         outputs = F.interpolate(outputs, size=masks.shape[-2:], mode="bilinear", align_corners=False)
@@ -63,6 +70,16 @@ with torch.no_grad():
 
         all_preds_tensor.append(preds.cpu())
         all_targets_tensor.append(masks.cpu())
+
+        # Save example masks and overlays
+        if CFG.show_sample_predictions and sample_count < CFG.num_eval_samples:
+            for b in range(images.size(0)):
+                image_idx = sample_count
+                save_mask(preds[b], os.path.join(mask_dir, f"sample_{image_idx}_mask.png"), palette)
+                save_overlay(images[b], preds[b], os.path.join(overlay_dir, f"sample_{image_idx}_overlay.png"), palette)
+                sample_count += 1
+                if sample_count >= CFG.num_eval_samples:
+                    break
 
 # ------------------ FLATTENED METRICS ------------------
 
@@ -79,7 +96,6 @@ f1 = f1_score(flat_targets, flat_preds, average="macro", zero_division=0)
 
 # ------------------ TENSOR METRICS ------------------
 
-# Stack [B, H, W] tensors
 all_preds_tensor = torch.cat(all_preds_tensor, dim=0)
 all_targets_tensor = torch.cat(all_targets_tensor, dim=0)
 
