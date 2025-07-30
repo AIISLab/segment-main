@@ -34,8 +34,9 @@ Vision Transformers
   - SETR
 
 Convolutional Neural Networks
-  - ...
-  - ...
+  - DeepLabV3
+  - FCN
+  - PSPNet
 
 ### 🧾 Training / Evaluation Command-Line Arguments
 
