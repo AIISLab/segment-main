@@ -22,12 +22,13 @@ CFG = SimpleNamespace(
     ignore_index = 255,
     pretrained = True,
     freeze_encoder = False,
+    
 
     # Input
     image_size = defaults["image_size"],
 
     # Training
-    epochs = 20,
+    epochs = 50,
     batch_size = 16,
     learning_rate = 5e-5,
     weight_decay = 1e-4,
@@ -39,7 +40,7 @@ CFG = SimpleNamespace(
     dice_weight = 0.5,
 
     # Data paths
-    dataset_root = "data",
+    dataset_root = "tomato",
     label_csv = "class_dict.csv",
 
     # Logging / Outputs

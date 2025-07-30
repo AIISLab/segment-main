@@ -9,19 +9,13 @@ from utils.dataloader import get_loaders
 from utils.metrics import dice_coef, iou_score  # Stub in metrics.py
 import numpy as np
 from tqdm import tqdm
+from utils.helpers import get_logits
+from utils.cli import parse_args
 
 os.environ["TRANSFORMERS_NO_TF"] = "1"
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"  # Optional: makes TF stop printing stuff
 
 # ------------------ CLI ARGUMENTS ------------------
-
-def parse_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--architecture", type=str, default=CFG.architecture)
-    parser.add_argument("--model_name", type=str, default=CFG.model_name)
-    parser.add_argument("--data_root", type=str, default=CFG.dataset_root)
-    parser.add_argument("--label_csv", type=str, default=CFG.label_csv)
-    return parser.parse_args()
 
 args = parse_args()
 CFG.architecture = args.architecture
@@ -62,7 +56,7 @@ for epoch in range(CFG.epochs):
         images, masks = images.to(device), masks.to(device)
 
         optimizer.zero_grad()
-        outputs = model(images).logits
+        outputs = get_logits(model(images))
         # Example: assuming outputs is [B, C, H, W] and masks is [B, H, W]
         outputs = nn.functional.interpolate(outputs, size=masks.shape[-2:], mode="bilinear", align_corners=False)
         loss = loss_fn(outputs, masks)
@@ -80,7 +74,7 @@ for epoch in range(CFG.epochs):
         with torch.no_grad():
             for images, masks in tqdm(val_loader, desc="Validating"):
                 images, masks = images.to(device), masks.to(device)
-                outputs = model(images).logits
+                outputs = get_logits(model(images))
                 outputs = nn.functional.interpolate(outputs, size=masks.shape[-2:], mode="bilinear", align_corners=False)
                 loss = loss_fn(outputs, masks)
                 val_loss.append(loss.item())

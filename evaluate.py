@@ -7,6 +7,8 @@ from models.factory import get_model
 from utils.dataloader import get_loaders
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from utils.metrics import iou_score
+from utils.helpers import get_logits
+from utils.cli import parse_args
 from tqdm import tqdm
 import numpy as np
 
@@ -52,7 +54,7 @@ all_targets_tensor = []
 with torch.no_grad():
     for images, masks in tqdm(val_loader, desc="Evaluating"):
         images, masks = images.to(device), masks.to(device)
-        outputs = model(images).logits
+        outputs = get_logits(model(images))
         outputs = F.interpolate(outputs, size=masks.shape[-2:], mode="bilinear", align_corners=False)
         preds = outputs.argmax(dim=1)  # [B, H, W]
 
