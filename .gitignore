@@ -44,6 +44,10 @@ data/
 *.tar.gz
 
 tomato/
+almond/
+citrus/
+pistachio/
+grapes/
 tomato_segformer/
 
 # VSCode
