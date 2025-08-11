@@ -1,4 +1,3 @@
-import argparse
 import os
 import torch
 import torch.nn.functional as F
@@ -19,89 +18,126 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
 # ------------------ CLI ARGUMENTS ------------------
 args = parse_args()
-CFG.architecture = args.architecture
-CFG.model_name = args.model_name
-CFG.dataset_root = args.data_root
-CFG.label_csv = args.label_csv
-CFG.weights = args.weights
 
-# ------------------ SETUP ------------------
+# Apply CLI overrides
+if args.architecture:
+    CFG.architecture = args.architecture
+if args.model_name:
+    CFG.model_name = args.model_name
+if args.data_root:
+    CFG.dataset_root = args.data_root
+if args.label_csv:
+    CFG.label_csv = args.label_csv
+if getattr(args, "num_classes", None) is not None:
+    CFG.num_classes = args.num_classes
+if getattr(args, "in_channels", None) is not None:
+    CFG.in_channels = args.in_channels
 
-torch.manual_seed(CFG.seed)
-device = CFG.device
+# Default checkpoint path
+dataset_name = os.path.basename(os.path.normpath(CFG.dataset_root))
+weights_path = os.path.join(
+    CFG.output_dir, dataset_name, CFG.architecture, "checkpoints",
+    f"{dataset_name}_{CFG.architecture}_best.pt"
+)
 
-model = get_model().to(device)
-model.load_state_dict(torch.load(CFG.weights, map_location=device))
-print("[INFO] Loaded model weights from:", CFG.weights)
+print(f"[INFO] Using weights: {weights_path}")
+if not os.path.exists(weights_path):
+    raise FileNotFoundError(f"[ERROR] Checkpoint not found: {weights_path}")
+
+# ------------------ LOAD CHECKPOINT ------------------
+ckpt = torch.load(weights_path, map_location=CFG.device)
+
+# Restore config from checkpoint if available
+if isinstance(ckpt, dict) and "cfg" in ckpt:
+    print("[INFO] Loading CFG from checkpoint...")
+    for k, v in ckpt["cfg"].items():
+        setattr(CFG, k, v)
+
+# Extract state dict
+if isinstance(ckpt, dict) and "state_dict" in ckpt:
+    state = ckpt["state_dict"]
+else:
+    state = ckpt
+
+# Handle DataParallel-trained models
+if any(k.startswith("module.") for k in state.keys()):
+    print("[INFO] Stripping 'module.' prefix from state_dict keys...")
+    state = {k.replace("module.", ""): v for k, v in state.items()}
+
+# ------------------ BUILD MODEL ------------------
+model = get_model().to(CFG.device)
+try:
+    model.load_state_dict(state, strict=True)
+except RuntimeError as e:
+    raise RuntimeError(
+        f"[LOAD ERROR] State dict doesn't match the current model.\n"
+        f"- architecture: {CFG.architecture}\n"
+        f"- model_name:   {CFG.model_name}\n"
+        f"- num_classes:  {CFG.num_classes}\n"
+        f"- in_channels:  {CFG.in_channels}\n\n"
+        f"Common causes:\n"
+        f"  • Mismatch in num_classes (e.g., 150 default vs dataset’s 2)\n"
+        f"  • Mismatch in in_channels (e.g., RGB 3 vs RGB+Thermal 4)\n"
+        f"  • Different model variant (e.g., segformer-b0 vs segformer-b3)\n\n"
+        f"Original error:\n{e}"
+    )
+
+print(f"[INFO] Model loaded: {CFG.architecture}")
 model.eval()
 
+# ------------------ DATA ------------------
 _, val_loader = get_loaders(CFG.dataset_root, CFG.label_csv)
 csv_path = os.path.join(CFG.dataset_root, CFG.label_csv)
 palette = load_palette_from_csv(csv_path)
 
-# Create output folders
-# Generate date string
+# Output dirs
 today = datetime.now().strftime("%Y-%m-%d")
-
-# Build output paths
-mask_dir = os.path.join(CFG.output_dir, CFG.architecture, today, "masks")
-overlay_dir = os.path.join(CFG.output_dir, CFG.architecture, today, "overlays")
+mask_dir = os.path.join(CFG.output_dir, dataset_name, CFG.architecture, today, "masks")
+overlay_dir = os.path.join(CFG.output_dir, dataset_name, CFG.architecture, today, "overlays")
 os.makedirs(mask_dir, exist_ok=True)
 os.makedirs(overlay_dir, exist_ok=True)
 
 # ------------------ EVALUATION ------------------
-
-flat_preds = []
-flat_targets = []
-all_preds_tensor = []
-all_targets_tensor = []
-
+flat_preds, flat_targets = [], []
+all_preds_tensor, all_targets_tensor = [], []
 sample_count = 0
 
 with torch.no_grad():
-    for i, (images, masks) in enumerate(tqdm(val_loader, desc="Evaluating")):
-        images, masks = images.to(device), masks.to(device)
+    for images, masks in tqdm(val_loader, desc="Evaluating"):
+        images, masks = images.to(CFG.device), masks.to(CFG.device)
         outputs = get_logits(model(images))
         outputs = F.interpolate(outputs, size=masks.shape[-2:], mode="bilinear", align_corners=False)
-        preds = outputs.argmax(dim=1)  # [B, H, W]
+        preds = outputs.argmax(dim=1)
 
         flat_preds.extend(preds.cpu().numpy().reshape(-1))
         flat_targets.extend(masks.cpu().numpy().reshape(-1))
-
         all_preds_tensor.append(preds.cpu())
         all_targets_tensor.append(masks.cpu())
 
-        # Save example masks and overlays
+        # Save some predictions
         if CFG.show_sample_predictions and sample_count < CFG.num_eval_samples:
             for b in range(images.size(0)):
-                image_idx = sample_count
-                save_mask(preds[b], os.path.join(mask_dir, f"sample_{image_idx}_mask.png"), palette)
-                save_overlay(images[b], preds[b], os.path.join(overlay_dir, f"sample_{image_idx}_overlay.png"), palette)
+                save_mask(preds[b], os.path.join(mask_dir, f"sample_{sample_count}_mask.png"), palette)
+                save_overlay(images[b], preds[b], os.path.join(overlay_dir, f"sample_{sample_count}_overlay.png"), palette)
                 sample_count += 1
                 if sample_count >= CFG.num_eval_samples:
                     break
 
-# ------------------ FLATTENED METRICS ------------------
-
+# ------------------ METRICS ------------------
 flat_preds = np.array(flat_preds)
 flat_targets = np.array(flat_targets)
-mask = flat_targets != CFG.ignore_index
-flat_preds = flat_preds[mask]
-flat_targets = flat_targets[mask]
+valid = flat_targets != CFG.ignore_index
+flat_preds = flat_preds[valid]
+flat_targets = flat_targets[valid]
 
-acc = accuracy_score(flat_targets, flat_preds)
+acc  = accuracy_score(flat_targets, flat_preds)
 prec = precision_score(flat_targets, flat_preds, average="macro", zero_division=0)
-rec = recall_score(flat_targets, flat_preds, average="macro", zero_division=0)
-f1 = f1_score(flat_targets, flat_preds, average="macro", zero_division=0)
-
-# ------------------ TENSOR METRICS ------------------
+rec  = recall_score(flat_targets, flat_preds, average="macro", zero_division=0)
+f1   = f1_score(flat_targets, flat_preds, average="macro", zero_division=0)
 
 all_preds_tensor = torch.cat(all_preds_tensor, dim=0)
 all_targets_tensor = torch.cat(all_targets_tensor, dim=0)
-
 iou = iou_score(all_preds_tensor, all_targets_tensor, CFG.num_classes, ignore_index=CFG.ignore_index)
-
-# ------------------ RESULTS ------------------
 
 print("\n[Evaluation Results]")
 print(f"Accuracy:  {acc:.4f}")

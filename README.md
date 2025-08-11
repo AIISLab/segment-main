@@ -19,13 +19,13 @@ your_dataset/
 ### Train a Model
 
 ```bash
-python3 train.py --data_root tomato/segformer --architecture segformer
+python3 train.py --data_root tomato --architecture segformer
 ```
 
 ### Evaluate a trained Model
 
 ```bash
-python3 evaluate.py --data_root tomato/segformer --architecture segformer --weights weights/your_model.pt
+python3 evaluate.py --data_root tomato --architecture segformer 
 ```
 ### Current Compatible Architectures:
 Vision Transformers
@@ -44,7 +44,7 @@ Convolutional Neural Networks
 |-----------------------|-----------------------------------------------------------------------------|---------------------------------------------|
 | `--architecture`      | Model architecture to use                                                   | `segformer`, `mask2former`, `setr`, `fcn`   |
 | `--model_name`        | HF or local model path/name                                                 | `nvidia/segformer-b3-finetuned-ade-512-512` |
-| `--data_root`         | Path to dataset root folder                                                 | `tomato/segformer`                          |
+| `--data_root`         | Path to dataset root folder                                                 | `tomato`                          |
 | `--label_csv`         | Relative path to class_dict CSV inside dataset                              | `class_dict.csv`                            |
 | `--weights`           | (Eval) Path to model weights `.pt` file                                     | `weights/best_model.pt`                     |
 | `--in_channels`       | Number of input channels (e.g. RGB=3, RGB+Thermal=4)                         | `3`                                         |
@@ -61,10 +61,4 @@ Convolutional Neural Networks
 | `--save_best_only`    | Only save the best-performing model (lowest val loss)                       | `--save_best_only`                          |
 | `--show_sample_predictions` | Save sample visual predictions during evaluation                     | `--show_sample_predictions`                 |
 | `--num_eval_samples`  | Number of samples to visualize during evaluation                            | `5`                                         |
-
-If needed, use the dataset formatting utility to prepare your dataset directory structure and ensure compatibility with the model architecture:
-
-```bash
-python3 utils/format_dataset.py --data_root tomato --architecture setr
-```
 

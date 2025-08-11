@@ -1,35 +1,58 @@
 import argparse
 import os
+import subprocess
 import torch
 import torch.nn as nn
 from torch.optim import AdamW
 from config import CFG
 from models.factory import get_model
 from utils.dataloader import get_loaders
-from utils.metrics import dice_coef, iou_score  # Stub in metrics.py
+from utils.metrics import dice_coef, iou_score
 import numpy as np
 from tqdm import tqdm
 from utils.helpers import get_logits
 from utils.cli import parse_args
+import sys
+import warnings
+warnings.filterwarnings("ignore", message=".*NCCL.*")
+
 
 os.environ["TRANSFORMERS_NO_TF"] = "1"
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"  # Optional: makes TF stop printing stuff
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
 # ------------------ CLI ARGUMENTS ------------------
-
 args = parse_args()
 CFG.architecture = args.architecture
 CFG.model_name = args.model_name
 CFG.dataset_root = args.data_root
 CFG.label_csv = args.label_csv
 
-# ------------------ SETUP ------------------
+# ------------------ FORMAT DATASET CHECK ------------------
+formatted_dataset_path = os.path.join(CFG.dataset_root, CFG.architecture)
+if not os.path.exists(formatted_dataset_path):
+    print(f"[INFO] Formatted dataset not found at {formatted_dataset_path}.")
+    print("[INFO] Running format_dataset.py...")
+    subprocess.run([
+    sys.executable, "utils/format_dataset.py",
+    "--data_root", CFG.dataset_root,
+    "--architecture", CFG.architecture
+    ], check=True)
+else:
+    print(f"[INFO] Found formatted dataset at {formatted_dataset_path}, skipping formatting.")
 
+# ------------------ SETUP ------------------
 torch.manual_seed(CFG.seed)
 os.makedirs(CFG.output_dir, exist_ok=True)
 
 device = CFG.device
-model = get_model().to(device)
+model = get_model()
+
+# Enable multi-GPU if available
+if torch.cuda.device_count() > 1:
+    print(f"[INFO] Using {torch.cuda.device_count()} GPUs")
+    model = nn.DataParallel(model)
+
+model = model.to(device)
 
 train_loader, val_loader = get_loaders(CFG.dataset_root, CFG.label_csv)
 
@@ -44,9 +67,12 @@ def loss_fn(pred, target):
     return ce
 
 # ------------------ TRAINING ------------------
-
 best_val_loss = float("inf")
 no_improve_counter = 0
+
+dataset_name = os.path.basename(os.path.normpath(CFG.dataset_root))
+ckpt_dir = os.path.join(CFG.output_dir, dataset_name, CFG.architecture, "checkpoints")
+os.makedirs(ckpt_dir, exist_ok=True)
 
 for epoch in range(CFG.epochs):
     model.train()
@@ -57,7 +83,6 @@ for epoch in range(CFG.epochs):
 
         optimizer.zero_grad()
         outputs = get_logits(model(images))
-        # Example: assuming outputs is [B, C, H, W] and masks is [B, H, W]
         outputs = nn.functional.interpolate(outputs, size=masks.shape[-2:], mode="bilinear", align_corners=False)
         loss = loss_fn(outputs, masks)
         loss.backward()
@@ -67,7 +92,6 @@ for epoch in range(CFG.epochs):
 
     avg_train_loss = np.mean(train_loss)
 
-    # ------------------ VALIDATION ------------------
     if (epoch + 1) % CFG.val_every == 0:
         model.eval()
         val_loss = []
@@ -82,12 +106,13 @@ for epoch in range(CFG.epochs):
         avg_val_loss = np.mean(val_loss)
         print(f"Epoch {epoch+1} - Train Loss: {avg_train_loss:.4f} - Val Loss: {avg_val_loss:.4f}")
 
-        # Save best checkpoint
         if avg_val_loss < best_val_loss:
             best_val_loss = avg_val_loss
-            no_improve_counter = 0  # reset counter
-            checkpoint_path = os.path.join(CFG.output_dir, f"{CFG.project_name}_{CFG.architecture}_best.pt")
-            torch.save(model.state_dict(), checkpoint_path)
+            no_improve_counter = 0
+            checkpoint_path = os.path.join(ckpt_dir, f"{dataset_name}_{CFG.architecture}_best.pt")
+            torch.save(
+                model.state_dict(),
+                checkpoint_path)
             print(f"[Checkpoint] Saved best model to {checkpoint_path}")
         else:
             no_improve_counter += 1
