@@ -16,11 +16,13 @@ import sys
 import warnings
 warnings.filterwarnings("ignore", message=".*NCCL.*")
 
-
 os.environ["TRANSFORMERS_NO_TF"] = "1"
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
 # ------------------ CLI ARGUMENTS ------------------
+
+## Here we just parse in the command line arguments and set some of the defaults for our image segmentation pipeline process
+
 args = parse_args()
 CFG.architecture = args.architecture
 CFG.model_name = args.model_name
@@ -28,6 +30,12 @@ CFG.dataset_root = args.data_root
 CFG.label_csv = args.label_csv
 
 # ------------------ FORMAT DATASET CHECK ------------------
+
+## Each model (CNN/ViT etc.) should have a configureation saved the the model_zoo.py
+## Whatever your dataset root is, this patch of code will create a subfolder in it for the specific model architecture you are running
+## (In case of special formatting needs for individual architectures)
+## !!! This can eat up a lot of memory as it will copy all of your images/masks into the subfolder after reformatting !!!
+
 formatted_dataset_path = os.path.join(CFG.dataset_root, CFG.architecture)
 if not os.path.exists(formatted_dataset_path):
     print(f"[INFO] Formatted dataset not found at {formatted_dataset_path}.")
@@ -67,9 +75,12 @@ def loss_fn(pred, target):
     return ce
 
 # ------------------ TRAINING ------------------
+
+## For tracking best val loss and patience counter for early stopping 
 best_val_loss = float("inf")
 no_improve_counter = 0
 
+## 
 dataset_name = os.path.basename(os.path.normpath(CFG.dataset_root))
 ckpt_dir = os.path.join(CFG.output_dir, dataset_name, CFG.architecture, "checkpoints")
 os.makedirs(ckpt_dir, exist_ok=True)
