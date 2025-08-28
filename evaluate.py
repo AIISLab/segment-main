@@ -32,28 +32,25 @@ CFG.freeze_encoder = args.freeze_encoder
 CFG.use_dice_loss = args.use_dice_loss
 CFG.dice_weight = args.dice_weight
 
-# Evaluation / Logging
+# Eval/Logging
 CFG.save_best_only = args.save_best_only
 CFG.num_eval_samples = args.num_eval_samples
 CFG.show_sample_predictions = args.show_sample_predictions
 
-# Weights handling: prioritize CLI/default, else build dataset-specific path
-if args.weights:
+if args.weights is not None:
     CFG.weights = args.weights
 else:
-    dataset_name = os.path.basename(os.path.normpath(CFG.dataset_root))
     CFG.weights = os.path.join(
-        getattr(CFG, "output_dir", "./results"),  # fallback if not in CFG
-        dataset_name,
-        CFG.architecture,
+        "results",
+        args.data_root,
+        args.architecture,
         "checkpoints",
-        f"{dataset_name}_{CFG.architecture}_best.pt"
+        f"{args.data_root}_{args.architecture}_best.pt"
     )
 
 print(f"[INFO] Using weights: {CFG.weights}")
 if not os.path.exists(CFG.weights):
     raise FileNotFoundError(f"[ERROR] Checkpoint not found: {CFG.weights}")
-
 
 # ------------------ LOAD CHECKPOINT ------------------
 ckpt = torch.load(CFG.weights, map_location=CFG.device)
@@ -98,14 +95,14 @@ model.eval()
 
 
 # ------------------ DATA ------------------
-_, _, test_loader = get_loaders(CFG.dataset_root, CFG.label_csv, include_text=True)
+_, _, test_loader = get_loaders(CFG.dataset_root, CFG.label_csv, include_test=True)
 csv_path = os.path.join(CFG.dataset_root, CFG.label_csv)
 palette = load_palette_from_csv(csv_path)
 
 # Output dirs
 today = datetime.now().strftime("%Y-%m-%d")
-mask_dir = os.path.join(CFG.output_dir, dataset_name, CFG.architecture, today, "masks")
-overlay_dir = os.path.join(CFG.output_dir, dataset_name, CFG.architecture, today, "overlays")
+mask_dir = os.path.join(CFG.output_dir, CFG.dataset_root, CFG.architecture, today, "masks")
+overlay_dir = os.path.join(CFG.output_dir, CFG.dataset_root, CFG.architecture, today, "overlays")
 os.makedirs(mask_dir, exist_ok=True)
 os.makedirs(overlay_dir, exist_ok=True)
 

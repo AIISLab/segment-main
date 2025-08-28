@@ -30,9 +30,13 @@ def parse_args():
     parser.add_argument("--num_eval_samples", type=int, default=CFG.num_eval_samples)
     parser.add_argument("--show_sample_predictions", action="store_true")
 
-    # Auto-naming: segmentation-pipeline_<arch>_best.pt
-    default_weights = f"./results/segmentation-pipeline_{CFG.architecture}_best.pt"
-    parser.add_argument("--weights", type=str, default=default_weights,
-                        help="Path to model weights (.pt). Auto-filled based on architecture.")
+    # Weights (defer to evaluate/train if None)
+    parser.add_argument(
+        "--weights",
+        type=str,
+        default=None,
+        help="Path to model weights (.pt). If not provided, auto-built dynamically in train/evaluate."
+    )
+
 
     return parser.parse_args()
