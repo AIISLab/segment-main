@@ -86,7 +86,7 @@ print(f"[INFO] Model loaded: {CFG.architecture}")
 model.eval()
 
 # ------------------ DATA ------------------
-_, val_loader = get_loaders(CFG.dataset_root, CFG.label_csv)
+_, _, test_loader = get_loaders(CFG.dataset_root, CFG.label_csv, include_text=True)
 csv_path = os.path.join(CFG.dataset_root, CFG.label_csv)
 palette = load_palette_from_csv(csv_path)
 
@@ -103,7 +103,7 @@ all_preds_tensor, all_targets_tensor = [], []
 sample_count = 0
 
 with torch.no_grad():
-    for images, masks in tqdm(val_loader, desc="Evaluating"):
+    for images, masks in tqdm(test_loader, desc="Evaluating"):
         images, masks = images.to(CFG.device), masks.to(CFG.device)
         outputs = get_logits(model(images))
         outputs = F.interpolate(outputs, size=masks.shape[-2:], mode="bilinear", align_corners=False)
