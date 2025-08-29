@@ -57,4 +57,5 @@ MODEL_ZOO = {
         "trust_remote_code": True,
         "image_size": (512, 512),
     },
+    # ADD NEW MODEL REQUIREMENTS HERE!
 }

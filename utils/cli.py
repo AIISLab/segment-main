@@ -28,7 +28,7 @@ def parse_args():
     # Evaluation / Logging
     parser.add_argument("--save_best_only", action="store_true")
     parser.add_argument("--num_eval_samples", type=int, default=CFG.num_eval_samples)
-    parser.add_argument("--show_sample_predictions", action="store_true")
+    parser.add_argument("--show_sample_predictions", action="store_true", default=True)
 
     # Weights (defer to evaluate/train if None)
     parser.add_argument(
