@@ -12,6 +12,8 @@ from tqdm import tqdm
 import numpy as np
 from datetime import datetime
 from utils.visualization import save_mask, save_overlay, load_palette_from_csv
+from models.model_zoo import MODEL_ZOO
+
 
 os.environ["TRANSFORMERS_NO_TF"] = "1"
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
@@ -37,15 +39,20 @@ CFG.save_best_only = args.save_best_only
 CFG.num_eval_samples = args.num_eval_samples
 CFG.show_sample_predictions = args.show_sample_predictions
 
+model_cfg = MODEL_ZOO.get(CFG.architecture, {})
+CFG.image_size = model_cfg.get("image_size", CFG.image_size)
+
+dataset_name = os.path.basename(os.path.normpath(CFG.dataset_root))
+
 if args.weights is not None:
     CFG.weights = args.weights
 else:
     CFG.weights = os.path.join(
         "results",
-        args.data_root,
+        dataset_name,
         args.architecture,
         "checkpoints",
-        f"{args.data_root}_{args.architecture}_best.pt"
+        f"{dataset_name}_{args.architecture}_best.pt"
     )
 
 print(f"[INFO] Using weights: {CFG.weights}")
@@ -77,6 +84,9 @@ CFG.save_best_only = args.save_best_only
 CFG.num_eval_samples = args.num_eval_samples
 CFG.show_sample_predictions = args.show_sample_predictions
 
+model_cfg = MODEL_ZOO.get(CFG.architecture, {})
+CFG.image_size = model_cfg.get("image_size", CFG.image_size)
+
 print(f"[INFO] Final eval flags -> "
       f"save_best_only={CFG.save_best_only}, "
       f"show_sample_predictions={CFG.show_sample_predictions}, "
@@ -106,14 +116,14 @@ print(f"[INFO] Model loaded: {CFG.architecture}")
 model.eval()
 
 # ------------------ DATA ------------------
-_, _, test_loader = get_loaders(CFG.dataset_root, CFG.label_csv, include_test=True)
+test_loader = get_loaders(CFG.dataset_root, CFG.label_csv, include_test_only=True)
 csv_path = os.path.join(CFG.dataset_root, CFG.label_csv)
 palette = load_palette_from_csv(csv_path)
 
 # Output dirs
 today = datetime.now().strftime("%Y-%m-%d")
-mask_dir = os.path.join(CFG.output_dir, CFG.dataset_root, CFG.architecture, today, "masks")
-overlay_dir = os.path.join(CFG.output_dir, CFG.dataset_root, CFG.architecture, today, "overlays")
+mask_dir = os.path.join(CFG.output_dir, dataset_name, CFG.architecture, today, "masks")
+overlay_dir = os.path.join(CFG.output_dir, dataset_name, CFG.architecture, today, "overlays")
 os.makedirs(mask_dir, exist_ok=True)
 os.makedirs(overlay_dir, exist_ok=True)
 

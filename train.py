@@ -57,11 +57,6 @@ CFG.weights = args.weights
 model_cfg = MODEL_ZOO.get(CFG.architecture, {})
 CFG.image_size = model_cfg.get("image_size", CFG.image_size)
 
-
-# ------------------ FORMAT DATASET CHECK ------------------
-
-## Each model (CNN/ViT etc.) should have a configuration saved the the model_zoo.py
-
 # ------------------ SETUP ------------------
 torch.manual_seed(CFG.seed)
 os.makedirs(CFG.output_dir, exist_ok=True)
