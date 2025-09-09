@@ -10,7 +10,7 @@ def get_transforms():
         T.ToTensor()
     ])
 
-def get_loaders(data_root="data", label_csv="class_dict.csv", include_test=False):
+def get_loaders(data_root="data", label_csv="class_dict.csv", include_test_only=False):
     """
     Returns train, val, and optionally test DataLoaders.
 
@@ -23,6 +23,17 @@ def get_loaders(data_root="data", label_csv="class_dict.csv", include_test=False
         loaders: tuple of train_loader, val_loader[, test_loader]
     """
     transform = get_transforms()
+
+    if include_test_only:
+        test_set = SegmentationDataset(data_root, split="test", label_csv=label_csv, transform=transform)
+        test_loader = DataLoader(
+            test_set,
+            batch_size=CFG.batch_size,
+            shuffle=False,
+            num_workers=0,
+            pin_memory=False
+        )
+        return test_loader
 
     train_set = SegmentationDataset(data_root, split="train", label_csv=label_csv, transform=transform)
     val_set   = SegmentationDataset(data_root, split="val",   label_csv=label_csv, transform=transform)
@@ -42,16 +53,5 @@ def get_loaders(data_root="data", label_csv="class_dict.csv", include_test=False
         num_workers=0,
         pin_memory=False
     )
-
-    if include_test:
-        test_set = SegmentationDataset(data_root, split="test", label_csv=label_csv, transform=transform)
-        test_loader = DataLoader(
-            test_set,
-            batch_size=CFG.batch_size,
-            shuffle=False,
-            num_workers=0,
-            pin_memory=False
-        )
-        return train_loader, val_loader, test_loader
 
     return train_loader, val_loader

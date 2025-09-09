@@ -60,22 +60,7 @@ CFG.image_size = model_cfg.get("image_size", CFG.image_size)
 
 # ------------------ FORMAT DATASET CHECK ------------------
 
-## Each model (CNN/ViT etc.) should have a configureation saved the the model_zoo.py
-## Whatever your dataset root is, this patch of code will create a subfolder in it for the specific model architecture you are running
-## (In case of special formatting needs for individual architectures)
-## !!! This can eat up a lot of memory as it will copy all of your images/masks into the subfolder after reformatting !!!
-
-#formatted_dataset_path = os.path.join(CFG.dataset_root, CFG.architecture)
-#if not os.path.exists(formatted_dataset_path):
-#   print(f"[INFO] Formatted dataset not found at {formatted_dataset_path}.")
-#    print("[INFO] Running format_dataset.py...")
-#    subprocess.run([
-#    sys.executable, "utils/format_dataset.py",
-#    "--data_root", CFG.dataset_root,
-#    "--architecture", CFG.architecture
-#    ], check=True)
-#else:
-#    print(f"[INFO] Found formatted dataset at {formatted_dataset_path}, skipping formatting.")
+## Each model (CNN/ViT etc.) should have a configuration saved the the model_zoo.py
 
 # ------------------ SETUP ------------------
 torch.manual_seed(CFG.seed)

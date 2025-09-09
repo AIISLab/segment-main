@@ -84,6 +84,7 @@ CFG.save_best_only = args.save_best_only
 CFG.num_eval_samples = args.num_eval_samples
 CFG.show_sample_predictions = args.show_sample_predictions
 
+model_cfg = MODEL_ZOO.get(CFG.architecture, {})
 CFG.image_size = model_cfg.get("image_size", CFG.image_size)
 
 print(f"[INFO] Final eval flags -> "
@@ -115,7 +116,7 @@ print(f"[INFO] Model loaded: {CFG.architecture}")
 model.eval()
 
 # ------------------ DATA ------------------
-_, _, test_loader = get_loaders(CFG.dataset_root, CFG.label_csv, include_test=True)
+test_loader = get_loaders(CFG.dataset_root, CFG.label_csv, include_test_only=True)
 csv_path = os.path.join(CFG.dataset_root, CFG.label_csv)
 palette = load_palette_from_csv(csv_path)
 
