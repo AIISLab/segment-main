@@ -12,6 +12,8 @@ from tqdm import tqdm
 import numpy as np
 from datetime import datetime
 from utils.visualization import save_mask, save_overlay, load_palette_from_csv
+from models.model_zoo import MODEL_ZOO
+
 
 os.environ["TRANSFORMERS_NO_TF"] = "1"
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
@@ -36,6 +38,9 @@ CFG.dice_weight = args.dice_weight
 CFG.save_best_only = args.save_best_only
 CFG.num_eval_samples = args.num_eval_samples
 CFG.show_sample_predictions = args.show_sample_predictions
+
+model_cfg = MODEL_ZOO.get(CFG.architecture, {})
+CFG.image_size = model_cfg.get("image_size", CFG.image_size)
 
 dataset_name = os.path.basename(os.path.normpath(CFG.dataset_root))
 
@@ -78,6 +83,8 @@ if any(k.startswith("module.") for k in state.keys()):
 CFG.save_best_only = args.save_best_only
 CFG.num_eval_samples = args.num_eval_samples
 CFG.show_sample_predictions = args.show_sample_predictions
+
+CFG.image_size = model_cfg.get("image_size", CFG.image_size)
 
 print(f"[INFO] Final eval flags -> "
       f"save_best_only={CFG.save_best_only}, "

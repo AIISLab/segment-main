@@ -16,6 +16,9 @@ import sys
 import warnings
 warnings.filterwarnings("ignore", message=".*NCCL.*")
 
+from models.model_zoo import MODEL_ZOO
+
+
 os.environ["TRANSFORMERS_NO_TF"] = "1"
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
@@ -51,6 +54,9 @@ CFG.num_eval_samples = args.num_eval_samples
 CFG.show_sample_predictions = args.show_sample_predictions   # bool flag
 CFG.weights = args.weights
 
+model_cfg = MODEL_ZOO.get(CFG.architecture, {})
+CFG.image_size = model_cfg.get("image_size", CFG.image_size)
+
 
 # ------------------ FORMAT DATASET CHECK ------------------
 
@@ -59,17 +65,17 @@ CFG.weights = args.weights
 ## (In case of special formatting needs for individual architectures)
 ## !!! This can eat up a lot of memory as it will copy all of your images/masks into the subfolder after reformatting !!!
 
-formatted_dataset_path = os.path.join(CFG.dataset_root, CFG.architecture)
-if not os.path.exists(formatted_dataset_path):
-    print(f"[INFO] Formatted dataset not found at {formatted_dataset_path}.")
-    print("[INFO] Running format_dataset.py...")
-    subprocess.run([
-    sys.executable, "utils/format_dataset.py",
-    "--data_root", CFG.dataset_root,
-    "--architecture", CFG.architecture
-    ], check=True)
-else:
-    print(f"[INFO] Found formatted dataset at {formatted_dataset_path}, skipping formatting.")
+#formatted_dataset_path = os.path.join(CFG.dataset_root, CFG.architecture)
+#if not os.path.exists(formatted_dataset_path):
+#   print(f"[INFO] Formatted dataset not found at {formatted_dataset_path}.")
+#    print("[INFO] Running format_dataset.py...")
+#    subprocess.run([
+#    sys.executable, "utils/format_dataset.py",
+#    "--data_root", CFG.dataset_root,
+#    "--architecture", CFG.architecture
+#    ], check=True)
+#else:
+#    print(f"[INFO] Found formatted dataset at {formatted_dataset_path}, skipping formatting.")
 
 # ------------------ SETUP ------------------
 torch.manual_seed(CFG.seed)
@@ -88,10 +94,10 @@ model = model.to(device)
 train_loader, val_loader = get_loaders(CFG.dataset_root, CFG.label_csv)
 
 # IF you want to use Adam optimizer:
-#optimizer = AdamW(model.parameters(), lr=CFG.learning_rate, weight_decay=CFG.weight_decay)
+optimizer = AdamW(model.parameters(), lr=CFG.learning_rate, weight_decay=CFG.weight_decay)
 
 # IF you want to use RMSprop():
-optimizer = torch.optim.RMSprop(model.parameters(),lr=CFG.learning_rate,alpha=0.995,weight_decay=0.0)
+#optimizer = torch.optim.RMSprop(model.parameters(),lr=CFG.learning_rate,alpha=0.995,weight_decay=0.0)
 
 ce_loss = nn.CrossEntropyLoss(ignore_index=CFG.ignore_index)
 

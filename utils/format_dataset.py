@@ -4,6 +4,8 @@ from PIL import Image
 import shutil
 import sys
 from pathlib import Path
+#### NO LONGER USED - NOT NECESSARY BUT JUST LEAVING IT IN CASE
+
 
 # Add the project root to sys.path
 sys.path.append(str(Path(__file__).resolve().parents[1]))
