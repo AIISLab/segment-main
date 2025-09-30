@@ -16,7 +16,11 @@ from utils.helpers import get_logits
 from utils.visualization import save_mask, save_overlay, load_palette_from_csv
 from utils.metrics import iou_score
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
-from utils.flir_extractor import FlirImageExtractor
+from utils.flir_extractor import (
+    FlirImageExtractor,
+    crop_mask_and_overlay_temps,
+    calculateCWSI
+)
 
 
 # ------------------ CLI ------------------
@@ -30,6 +34,9 @@ def parse_args():
     parser.add_argument("--label_csv", type=str, required=True)
     parser.add_argument("--in_channels", type=int, default=3)
     parser.add_argument("--num_classes", type=int, default=2)
+    parser.add_argument("--at", type=float, default=30.0, help="Atmospheric temperature for filtering")
+    parser.add_argument("--val_sub", type=float, default=0.0, help="Subtract threshold from Ta")
+    parser.add_argument("--val_add", type=float, default=0.0, help="Add threshold to Ta")
     return parser.parse_args()
 
 
@@ -113,7 +120,6 @@ def main():
     fie.extracted_metadata = fie.extract_metadata(args.image_path)
     fie.updated_metadata = fie.extracted_metadata
     fie.process_image(args.image_path)
-
     thermal_np = fie.get_thermal_np()
 
     # Align mask to thermal size if needed
@@ -124,12 +130,29 @@ def main():
 
     sunlit_temps = thermal_np[pred_mask_resized == 1]  # class 1 = sunlit leaf
     if sunlit_temps.size > 0:
+        avg_temp = np.mean(sunlit_temps)
+        min_temp = np.min(sunlit_temps)
+        max_temp = np.max(sunlit_temps)
         print("\n[Temperature Extraction]")
-        print(f"Average sunlit temp: {np.mean(sunlit_temps):.2f} °C")
-        print(f"Min sunlit temp:     {np.min(sunlit_temps):.2f} °C")
-        print(f"Max sunlit temp:     {np.max(sunlit_temps):.2f} °C")
+        print(f"Average sunlit temp: {avg_temp:.2f} °C")
+        print(f"Min sunlit temp:     {min_temp:.2f} °C")
+        print(f"Max sunlit temp:     {max_temp:.2f} °C")
+
+        # Extra: mask overlay + mean temp with thresholds
+        mean_sunlit_temp, temps_masked = crop_mask_and_overlay_temps(
+            thermal_np, os.path.join(out_dir, f"{basename}_mask.png"),
+            crop_w=0, crop_h=0,  # cropping offsets not used here
+            at=args.at, val_sub=args.val_sub, val_add=args.val_add
+        )
+        print(f"Filtered mean sunlit temp (thresholded): {mean_sunlit_temp:.2f} °C")
+
+        # Extra: compute CWSI
+        cwsi = calculateCWSI(args.at, avg_temp, float(fie.extracted_metadata['RelativeHumidity']))
+        print(f"CWSI: {cwsi:.3f}")
+
     else:
         print("[WARN] No sunlit pixels found.")
+
 
 if __name__ == "__main__":
     main()
