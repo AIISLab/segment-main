@@ -14,33 +14,36 @@ from datetime import datetime
 from utils.visualization import save_mask, save_overlay, load_palette_from_csv
 from models.model_zoo import MODEL_ZOO
 
-
 os.environ["TRANSFORMERS_NO_TF"] = "1"
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
 # ------------------ CLI ARGUMENTS ------------------
 args = parse_args()
 
+# --- Resolve architecture defaults ---
+arch = args.architecture
+defaults = MODEL_ZOO.get(arch, {})
+
 # Core
-CFG.architecture = args.architecture
-CFG.model_name = args.model_name
-CFG.dataset_root = args.data_root
-CFG.label_csv = args.label_csv
+CFG.architecture   = arch
+CFG.model_name     = args.model_name or defaults.get("default_model", None)
+CFG.dataset_root   = args.data_root
+CFG.label_csv      = args.label_csv
 
 # Model-related
-CFG.in_channels = args.in_channels
-CFG.num_classes = args.num_classes
+CFG.in_channels    = args.in_channels or defaults.get("in_channels", 3)
+CFG.num_classes    = args.num_classes or defaults.get("num_classes", 2)
 CFG.freeze_encoder = args.freeze_encoder
-CFG.use_dice_loss = args.use_dice_loss
-CFG.dice_weight = args.dice_weight
+CFG.use_dice_loss  = args.use_dice_loss
+CFG.dice_weight    = args.dice_weight
 
 # Eval/Logging
-CFG.save_best_only = args.save_best_only
-CFG.num_eval_samples = args.num_eval_samples
+CFG.save_best_only          = args.save_best_only
+CFG.num_eval_samples        = args.num_eval_samples
 CFG.show_sample_predictions = args.show_sample_predictions
 
-model_cfg = MODEL_ZOO.get(CFG.architecture, {})
-CFG.image_size = model_cfg.get("image_size", CFG.image_size)
+# Image size
+CFG.image_size = defaults.get("image_size", CFG.image_size)
 
 dataset_name = os.path.basename(os.path.normpath(CFG.dataset_root))
 
@@ -50,9 +53,9 @@ else:
     CFG.weights = os.path.join(
         "results",
         dataset_name,
-        args.architecture,
+        arch,
         "checkpoints",
-        f"{dataset_name}_{args.architecture}_best.pt"
+        f"{dataset_name}_{arch}_best.pt"
     )
 
 print(f"[INFO] Using weights: {CFG.weights}")
@@ -79,20 +82,15 @@ if any(k.startswith("module.") for k in state.keys()):
     print("[INFO] Stripping 'module.' prefix from state_dict keys...")
     state = {k.replace("module.", ""): v for k, v in state.items()}
 
-# --- RE-APPLY CLI FLAGS (must come *after* ckpt cfg load) ---
-CFG.save_best_only = args.save_best_only
-CFG.num_eval_samples = args.num_eval_samples
+# --- Re-apply CLI flags (after loading ckpt) ---
+CFG.save_best_only          = args.save_best_only
+CFG.num_eval_samples        = args.num_eval_samples
 CFG.show_sample_predictions = args.show_sample_predictions
-
-model_cfg = MODEL_ZOO.get(CFG.architecture, {})
-CFG.image_size = model_cfg.get("image_size", CFG.image_size)
 
 print(f"[INFO] Final eval flags -> "
       f"save_best_only={CFG.save_best_only}, "
       f"show_sample_predictions={CFG.show_sample_predictions}, "
       f"num_eval_samples={CFG.num_eval_samples}")
-
-
 
 # ------------------ BUILD MODEL ------------------
 model = get_model().to(CFG.device)
@@ -139,15 +137,12 @@ with torch.no_grad():
         outputs = F.interpolate(outputs, size=masks.shape[-2:], mode="bilinear", align_corners=False)
         preds = outputs.argmax(dim=1)
 
-        # keep original functionality of collecting flat numpy arrays
         flat_preds.extend(preds.detach().cpu().numpy().reshape(-1))
         flat_targets.extend(masks.detach().cpu().numpy().reshape(-1))
 
-        # also keep full tensors for IoU and for sanity checks/remaps
         all_preds_tensor.append(preds.detach().cpu())
         all_targets_tensor.append(masks.detach().cpu())
 
-        # Save some predictions
         if CFG.show_sample_predictions and sample_count < CFG.num_eval_samples:
             for b in range(images.size(0)):
                 save_mask(preds[b], os.path.join(mask_dir, f"sample_{sample_count}_mask.png"), palette)
@@ -156,31 +151,25 @@ with torch.no_grad():
                 if sample_count >= CFG.num_eval_samples:
                     break
 
-# ------------------ SANITY & COMPATIBILITY (post-loop) ------------------
-# build long tensors for robust metrics handling
+# ------------------ SANITY & COMPATIBILITY ------------------
 all_preds_tensor = torch.cat(all_preds_tensor, dim=0).long()
 all_targets_tensor = torch.cat(all_targets_tensor, dim=0).long()
 
-# valid mask for targets (ignore_index)
 if getattr(CFG, "ignore_index", None) is not None:
     tgt_valid_mask = all_targets_tensor != CFG.ignore_index
 else:
     tgt_valid_mask = torch.ones_like(all_targets_tensor, dtype=torch.bool)
 
-# discover observed max label among preds and valid targets
 pred_max = int(all_preds_tensor.max().item()) if all_preds_tensor.numel() else 0
 tgt_max = int(all_targets_tensor[tgt_valid_mask].max().item()) if tgt_valid_mask.any() else 0
 observed_max = max(pred_max, tgt_max)
 
 effective_num_classes = CFG.num_classes
 
-# If model produced labels outside configured class space:
 if observed_max >= CFG.num_classes:
     if CFG.num_classes == 2:
-        # collapse to binary if user intends binary (0 vs >0)
         print(f"[WARN] Observed labels up to {observed_max} with CFG.num_classes=2 — collapsing to binary (0 vs >0).")
         all_preds_tensor = (all_preds_tensor != 0).long()
-        # only remap non-ignored targets
         if getattr(CFG, "ignore_index", None) is not None:
             remap_targets = torch.where(all_targets_tensor == CFG.ignore_index,
                                         all_targets_tensor,
@@ -191,12 +180,10 @@ if observed_max >= CFG.num_classes:
         observed_max = 1
         effective_num_classes = 2
     else:
-        # expand class space for metrics to what is actually observed
         effective_num_classes = observed_max + 1
         print(f"[WARN] Observed labels up to {observed_max}; using effective_num_classes={effective_num_classes} for metrics.")
 
 # ------------------ METRICS ------------------
-# Recompute flat arrays from the possibly remapped tensors to keep behavior consistent
 flat_preds_np = all_preds_tensor.view(-1)
 flat_targets_np = all_targets_tensor.view(-1)
 
@@ -208,7 +195,6 @@ else:
 flat_preds_np = flat_preds_np[valid].cpu().numpy()
 flat_targets_np = flat_targets_np[valid].cpu().numpy()
 
-# sklearn metrics with explicit label set (stable macro metrics)
 labels_for_sklearn = list(range(effective_num_classes))
 
 acc  = accuracy_score(flat_targets_np, flat_preds_np)
@@ -216,7 +202,6 @@ prec = precision_score(flat_targets_np, flat_preds_np, labels=labels_for_sklearn
 rec  = recall_score(flat_targets_np, flat_preds_np, labels=labels_for_sklearn, average="macro", zero_division=0)
 f1   = f1_score(flat_targets_np, flat_preds_np, labels=labels_for_sklearn, average="macro", zero_division=0)
 
-# IoU uses the same effective class count and respects ignore_index internally
 iou = iou_score(all_preds_tensor, all_targets_tensor, effective_num_classes, ignore_index=CFG.ignore_index)
 
 print("\n[Evaluation Results]")

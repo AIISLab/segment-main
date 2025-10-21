@@ -18,44 +18,46 @@ warnings.filterwarnings("ignore", message=".*NCCL.*")
 
 from models.model_zoo import MODEL_ZOO
 
-
 os.environ["TRANSFORMERS_NO_TF"] = "1"
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
 # ------------------ CLI ARGUMENTS ------------------
 
-## Parse command line arguments and override CFG defaults
 args = parse_args()
 
-# Core
-CFG.architecture = args.architecture
-CFG.model_name = args.model_name
-CFG.dataset_root = args.data_root
-CFG.label_csv = args.label_csv
+# --- Resolve architecture defaults from MODEL_ZOO ---
+arch = args.architecture
+defaults = MODEL_ZOO.get(arch, {})
 
-# Model-related
-CFG.in_channels = args.in_channels
-CFG.num_classes = args.num_classes
-CFG.freeze_encoder = args.freeze_encoder   # bool flag
-CFG.use_dice_loss = args.use_dice_loss     # bool flag
-CFG.dice_weight = args.dice_weight
+# --- Core Config ---
+CFG.architecture   = arch
+CFG.model_name     = args.model_name or defaults.get("default_model", None)
+CFG.dataset_root   = args.data_root
+CFG.label_csv      = args.label_csv
 
-# Training
-CFG.epochs = args.epochs
-CFG.batch_size = args.batch_size
-CFG.learning_rate = args.learning_rate
-CFG.weight_decay = args.weight_decay
-CFG.val_every = args.val_every
-CFG.patience = args.patience
+# --- Model-related ---
+CFG.in_channels    = args.in_channels or defaults.get("in_channels", 3)
+CFG.num_classes    = args.num_classes or defaults.get("num_classes", 2)
+CFG.freeze_encoder = args.freeze_encoder
+CFG.use_dice_loss  = args.use_dice_loss
+CFG.dice_weight    = args.dice_weight
 
-# Evaluation / Logging
-CFG.save_best_only = args.save_best_only   # bool flag
-CFG.num_eval_samples = args.num_eval_samples
-CFG.show_sample_predictions = args.show_sample_predictions   # bool flag
-CFG.weights = args.weights
+# --- Training ---
+CFG.epochs         = args.epochs
+CFG.batch_size     = args.batch_size
+CFG.learning_rate  = args.learning_rate
+CFG.weight_decay   = args.weight_decay
+CFG.val_every      = args.val_every
+CFG.patience       = args.patience
 
-model_cfg = MODEL_ZOO.get(CFG.architecture, {})
-CFG.image_size = model_cfg.get("image_size", CFG.image_size)
+# --- Eval / Logging ---
+CFG.save_best_only        = args.save_best_only
+CFG.num_eval_samples      = args.num_eval_samples
+CFG.show_sample_predictions = args.show_sample_predictions
+CFG.weights               = args.weights
+
+# --- Image size from MODEL_ZOO ---
+CFG.image_size = defaults.get("image_size", CFG.image_size)
 
 # ------------------ SETUP ------------------
 torch.manual_seed(CFG.seed)
@@ -73,8 +75,9 @@ model = model.to(device)
 
 train_loader, val_loader = get_loaders(CFG.dataset_root, CFG.label_csv)
 
-# IF you want to use Adam optimizer:
+# Optimizer
 optimizer = AdamW(model.parameters(), lr=CFG.learning_rate, weight_decay=CFG.weight_decay)
+
 
 # IF you want to use RMSprop():
 #optimizer = torch.optim.RMSprop(model.parameters(),lr=CFG.learning_rate,alpha=0.995,weight_decay=0.0)
@@ -107,6 +110,7 @@ for epoch in range(CFG.epochs):
         images, masks = images.to(device), masks.to(device)
 
         optimizer.zero_grad()
+
         outputs = get_logits(model(images))
         outputs = nn.functional.interpolate(outputs, size=masks.shape[-2:], mode="bilinear", align_corners=False)
         loss = loss_fn(outputs, masks)

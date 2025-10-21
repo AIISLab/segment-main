@@ -1,8 +1,8 @@
-from transformers import AutoModelForSemanticSegmentation
+from transformers import AutoModelForUniversalSegmentation
 import torch.nn as nn
 
 def get_mask2former_model(CFG):
-    model = AutoModelForSemanticSegmentation.from_pretrained(
+    model = AutoModelForUniversalSegmentation.from_pretrained(
         CFG.model_name,
         trust_remote_code=True,
         num_labels=CFG.num_classes,

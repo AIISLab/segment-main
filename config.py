@@ -1,10 +1,5 @@
 from types import SimpleNamespace
-from models.model_zoo import MODEL_ZOO
 import torch
-from pathlib import Path
-
-arch = "segformer"
-defaults = MODEL_ZOO[arch]
 
 CFG = SimpleNamespace(
     # General
@@ -12,18 +7,15 @@ CFG = SimpleNamespace(
     seed=42,
     device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
 
-    # Model
-    architecture=arch,
-    model_name=defaults["default_model"],
-    num_classes=defaults["num_classes"],
-    in_channels=defaults["in_channels"],   # will override to 4 if USE_THERMAL later
-    trust_remote_code=defaults["trust_remote_code"],
+    # Placeholders – must be set by train/evaluate/single_evaluate
+    architecture=None,
+    model_name=None,
+    num_classes=None,
+    in_channels=None,
+    image_size=(512, 512),
     ignore_index=255,
     pretrained=True,
     freeze_encoder=False,
-
-    # Input
-    image_size=defaults["image_size"],
 
     # Training
     epochs=100,
@@ -38,7 +30,7 @@ CFG = SimpleNamespace(
     dice_weight=0.5,
 
     # Data paths
-    dataset_root="tomato",
+    dataset_root=None,
     label_csv="class_dict.csv",
 
     # Logging / Outputs

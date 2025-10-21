@@ -1,4 +1,12 @@
 MODEL_ZOO = {
+    "sam": {
+        "default_model": "facebook/sam-vit-base",
+        "num_classes": 2,             # adjust if multi-class
+        "in_channels": 3,             # RGB input
+        "trust_remote_code": True,    # SAM needs remote code
+        "image_size": (1024, 1024),   # native SAM resolution
+        "aliases": ["segment_anything", "samvit", "sam_vit_b"],
+    },
     "frrn_a": {
         "default_model": None,   # local impl
         "num_classes": 2,
@@ -30,7 +38,7 @@ MODEL_ZOO = {
         "image_size": (512, 512),
     },
     "mask2former": {
-        "default_model": "shi-labs/mask2former-swin-large-ade",
+        "default_model": "facebook/mask2former-swin-large-coco-instance",
         "num_classes": 150,
         "in_channels": 3,
         "trust_remote_code": True,

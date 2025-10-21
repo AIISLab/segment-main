@@ -9,11 +9,13 @@ Expected filenames and entry points:
     - segformer.py     -> get_segformer_model()
     - setr.py          -> get_setr_model()
     - mask2former.py   -> get_mask2former_model()
+    -sam.py            -> get_sam_model()
 """
 
 # Optional: expose available architectures here (not required if using dynamic imports)
 __all__ = [
     "segformer",
     "setr",
-    "mask2former"
+    "mask2former",
+    "sam"
 ]

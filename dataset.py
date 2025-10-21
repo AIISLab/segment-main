@@ -27,15 +27,20 @@ class SegmentationDataset(Dataset):
     def _convert_mask(self, mask):
         """
         Convert RGB mask to 2D class index mask using self.class_map.
-        Assumes mask is a H x W x 3 numpy array.
+        Any unknown colors are mapped to background (0).
         """
         mask = np.array(mask)
         h, w, _ = mask.shape
         label_mask = np.zeros((h, w), dtype=np.int64)
 
+        # Fill in known colors
         for color, class_id in self.class_map.items():
             matches = np.all(mask == color, axis=-1)
             label_mask[matches] = class_id
+
+        # Clamp out-of-range values just in case
+        label_mask[label_mask < 0] = 0
+        label_mask[label_mask >= CFG.num_classes] = 0
 
         return torch.tensor(label_mask, dtype=torch.long)
 

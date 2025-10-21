@@ -39,7 +39,11 @@ def save_overlay(rgb_tensor, mask_tensor, save_path, palette, alpha=0.5):
     rgb = (rgb * 255).astype(np.uint8)
     rgb_img = Image.fromarray(rgb)
 
-    mask_np = mask_tensor.squeeze().cpu().numpy().astype(np.uint8)
+    mask_np = mask_tensor.squeeze()
+    if mask_np.ndim == 3:  # sometimes comes as H×W×C
+        mask_np = mask_np[..., 0]
+    mask_np = mask_np.cpu().numpy().astype(np.uint8)
+
     overlay = np.zeros_like(rgb)
 
     # Map each class to its palette RGB
@@ -52,3 +56,4 @@ def save_overlay(rgb_tensor, mask_tensor, save_path, palette, alpha=0.5):
     overlay_img = Image.fromarray(overlay)
     blended = Image.blend(rgb_img, overlay_img, alpha=alpha)
     blended.save(save_path)
+

@@ -4,7 +4,6 @@
 import os
 import argparse
 import torch
-import torch.nn.functional as F
 import numpy as np
 from PIL import Image
 import cv2
@@ -23,15 +22,20 @@ from utils.flir_extractor import (
     calculateCWSI
 )
 
+from torchvision import transforms
+
+os.environ["TRANSFORMERS_NO_TF"] = "1"
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+
 
 # ------------------ CLI ------------------
 def parse_args():
     parser = argparse.ArgumentParser(description="Single image evaluation with temperature extraction")
     parser.add_argument("--image_path", type=str, required=True, help="Path to FLIR image")
-    parser.add_argument("--architecture", type=str, required=True, help="Model architecture")
+    parser.add_argument("--architecture", type=str, required=True, help="Model architecture (e.g. setr, frrn_a)")
     parser.add_argument("--data_root", type=str, required=True, help="Dataset root")
-    parser.add_argument("--in_channels", type=int, default=3)
-    parser.add_argument("--num_classes", type=int, default=2)
+    parser.add_argument("--in_channels", type=int, default=None)
+    parser.add_argument("--num_classes", type=int, default=None)
     parser.add_argument("--weights", type=str, default=None, help="Optional checkpoint path")
     parser.add_argument("--at", type=float, default=30.0, help="Atmospheric temperature for filtering")
     parser.add_argument("--val_sub", type=float, default=0.0, help="Subtract threshold from Ta")
@@ -43,13 +47,21 @@ def main():
     args = parse_args()
 
     # ------------------ CONFIG ------------------
-    CFG.architecture = args.architecture
-    CFG.dataset_root = args.data_root
-    CFG.in_channels = args.in_channels
-    CFG.num_classes = args.num_classes
+    arch = args.architecture
+    defaults = MODEL_ZOO.get(arch, {})
 
-    model_cfg = MODEL_ZOO.get(CFG.architecture, {})
-    CFG.image_size = model_cfg.get("image_size", CFG.image_size)
+    # Core
+    CFG.architecture   = arch
+    CFG.model_name     = defaults.get("default_model", None)
+    CFG.dataset_root   = args.data_root
+
+    # Model-related
+    CFG.in_channels    = args.in_channels or defaults.get("in_channels", 3)
+    CFG.num_classes    = args.num_classes or defaults.get("num_classes", 2)
+    CFG.trust_remote_code = defaults.get("trust_remote_code", False)
+
+    # Input
+    CFG.image_size = defaults.get("image_size", CFG.image_size)
 
     dataset_name = os.path.basename(os.path.normpath(CFG.dataset_root))
     if args.weights is not None:
@@ -58,34 +70,66 @@ def main():
         CFG.weights = os.path.join(
             "results",
             dataset_name,
-            args.architecture,
+            arch,
             "checkpoints",
-            f"{dataset_name}_{args.architecture}_best.pt"
+            f"{dataset_name}_{arch}_best.pt"
         )
 
     print(f"[INFO] Using weights: {CFG.weights}")
     if not os.path.exists(CFG.weights):
         raise FileNotFoundError(f"[ERROR] Checkpoint not found: {CFG.weights}")
 
-    # ------------------ LOAD MODEL ------------------
+    # ------------------ LOAD CHECKPOINT ------------------
     ckpt = torch.load(CFG.weights, map_location=CFG.device)
-    state = ckpt["state_dict"] if isinstance(ckpt, dict) and "state_dict" in ckpt else ckpt
+
+    if isinstance(ckpt, dict) and "cfg" in ckpt:
+        print("[INFO] Loading CFG from checkpoint...")
+        for k, v in ckpt["cfg"].items():
+            setattr(CFG, k, v)
+
+    if isinstance(ckpt, dict) and "state_dict" in ckpt:
+        state = ckpt["state_dict"]
+    else:
+        state = ckpt
+
     if any(k.startswith("module.") for k in state.keys()):
+        print("[INFO] Stripping 'module.' prefix from state_dict keys...")
         state = {k.replace("module.", ""): v for k, v in state.items()}
 
+    # ------------------ BUILD MODEL ------------------
     model = get_model().to(CFG.device)
-    model.load_state_dict(state, strict=True)
+    try:
+        model.load_state_dict(state, strict=True)
+    except RuntimeError as e:
+        raise RuntimeError(
+            f"[LOAD ERROR] State dict doesn't match the current model.\n"
+            f"- architecture: {CFG.architecture}\n"
+            f"- model_name:   {CFG.model_name}\n"
+            f"- num_classes:  {CFG.num_classes}\n"
+            f"- in_channels:  {CFG.in_channels}\n\n"
+            f"Original error:\n{e}"
+        )
+
+    print(f"[INFO] Model loaded: {CFG.architecture}")
     model.eval()
 
     # ------------------ LOAD IMAGE ------------------
     orig_img = Image.open(args.image_path).convert("RGB")
-    orig_size = orig_img.size  # (W, H)
+    orig_size = orig_img.size
 
-    from torchvision import transforms
+    # Normalize image_size
+    if isinstance(CFG.image_size, int):
+        resize_size = (CFG.image_size, CFG.image_size)
+    elif isinstance(CFG.image_size, (tuple, list)) and len(CFG.image_size) == 2:
+        resize_size = CFG.image_size
+    else:
+        raise ValueError(f"Unexpected CFG.image_size format: {CFG.image_size}")
+
     preprocess = transforms.Compose([
-        transforms.Resize((CFG.image_size, CFG.image_size)),
+        transforms.Resize(resize_size),
         transforms.ToTensor(),
     ])
+
     image_tensor = preprocess(orig_img).unsqueeze(0).to(CFG.device)
 
     # ------------------ PREDICT MASK ------------------
@@ -97,10 +141,29 @@ def main():
 
     # ------------------ LOAD GROUND TRUTH ------------------
     basename = os.path.splitext(os.path.basename(args.image_path))[0]
-    gt_path = os.path.join(CFG.dataset_root, "test", "masks", basename + ".png")
+    gt_path = os.path.join(CFG.dataset_root, "test_labels", basename + "_L.png")
     if not os.path.exists(gt_path):
         raise FileNotFoundError(f"Ground truth mask not found: {gt_path}")
-    gt_mask = np.array(Image.open(gt_path))
+
+    gt_mask_raw = np.array(Image.open(gt_path))
+
+    # Map RGB mask to class indices using class_dict.csv
+    csv_path = os.path.join(CFG.dataset_root, getattr(CFG, "label_csv", "labels.csv"))
+    palette = load_palette_from_csv(csv_path) if os.path.exists(csv_path) else None
+
+    if gt_mask_raw.ndim == 3 and gt_mask_raw.shape[-1] == 3 and palette is not None:
+        # reshape flat list into Nx3 triplets
+        palette_arr = np.array(palette).reshape(-1, 3)
+        rgb2id = {tuple(v): i for i, v in enumerate(palette_arr)}
+
+        h, w, _ = gt_mask_raw.shape
+        gt_mask = np.zeros((h, w), dtype=np.int64)
+        for rgb, idx in rgb2id.items():
+            matches = np.all(gt_mask_raw == rgb, axis=-1)
+            gt_mask[matches] = idx
+    else:
+        # already single channel
+        gt_mask = gt_mask_raw
 
     # ------------------ METRICS ------------------
     acc = accuracy_score(gt_mask.flatten(), pred_mask.flatten())
@@ -117,28 +180,39 @@ def main():
     print(f"IoU:       {iou:.4f}")
 
     # ------------------ SAVE VISUALS ------------------
-    csv_path = os.path.join(CFG.dataset_root, CFG.label_csv)
+    csv_path = os.path.join(CFG.dataset_root, getattr(CFG, "label_csv", "labels.csv"))
     palette = load_palette_from_csv(csv_path) if os.path.exists(csv_path) else None
     today = datetime.now().strftime("%Y-%m-%d")
     out_dir = os.path.join("outputs", "single_eval", today)
     os.makedirs(out_dir, exist_ok=True)
-    save_mask(pred_mask, os.path.join(out_dir, f"{basename}_mask.png"), palette)
-    save_overlay(image_tensor[0], torch.tensor(pred_mask), os.path.join(out_dir, f"{basename}_overlay.png"), palette)
+
+    # Save pred_mask at original resolution (for downstream use / temperature extraction)
+    save_mask(torch.tensor(pred_mask), os.path.join(out_dir, f"{basename}_mask.png"), palette)
+
+    # For overlay, resize pred_mask to match network input image_tensor
+    mask_for_overlay = cv2.resize(
+        pred_mask,
+        (image_tensor.shape[2], image_tensor.shape[1]),  # width, height from resized tensor
+        interpolation=cv2.INTER_NEAREST
+    )
+    #save_overlay(image_tensor[0], torch.tensor(mask_for_overlay), os.path.join(out_dir, f"{basename}_overlay.png"), palette)
+
 
     # ------------------ TEMPERATURE EXTRACTION ------------------
-    fie = FlirImageExtractor()
+    fie = FlirImageExtractor(
+    exiftool_path=r"C:\Users\AIIS2-admin\exiftool\exiftool-13.38_64\exiftool.exe"
+)
     fie.extracted_metadata = fie.extract_metadata(args.image_path)
     fie.updated_metadata = fie.extracted_metadata
     fie.process_image(args.image_path)
     thermal_np = fie.get_thermal_np()
 
-    # Align mask to thermal size if needed
+    # Align mask to thermal resolution
     if pred_mask.shape != thermal_np.shape:
-        pred_mask_resized = cv2.resize(pred_mask, (thermal_np.shape[1], thermal_np.shape[0]), interpolation=cv2.INTER_NEAREST)
-    else:
-        pred_mask_resized = pred_mask
+        print(f"[WARN] Resizing pred_mask from {pred_mask.shape} to match thermal {thermal_np.shape}")
+        pred_mask = cv2.resize(pred_mask, (thermal_np.shape[1], thermal_np.shape[0]), interpolation=cv2.INTER_NEAREST)
 
-    sunlit_temps = thermal_np[pred_mask_resized == 1]  # class 1 = sunlit leaf
+    sunlit_temps = thermal_np[pred_mask == 1]
     if sunlit_temps.size > 0:
         avg_temp = np.mean(sunlit_temps)
         min_temp = np.min(sunlit_temps)
@@ -148,7 +222,6 @@ def main():
         print(f"Min sunlit temp:     {min_temp:.2f} °C")
         print(f"Max sunlit temp:     {max_temp:.2f} °C")
 
-        # Filtered temps
         mean_sunlit_temp, temps_masked = crop_mask_and_overlay_temps(
             thermal_np, os.path.join(out_dir, f"{basename}_mask.png"),
             crop_w=0, crop_h=0,
@@ -156,7 +229,6 @@ def main():
         )
         print(f"Filtered mean sunlit temp: {mean_sunlit_temp:.2f} °C")
 
-        # Compute CWSI
         rh = float(fie.extracted_metadata['RelativeHumidity'])
         cwsi = calculateCWSI(args.at, avg_temp, rh)
         print(f"CWSI: {cwsi:.3f}")

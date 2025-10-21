@@ -6,6 +6,7 @@ VALID_ARCHS = {
     "segformer": "vit.segformer",
     "setr": "vit.setr",
     "mask2former": "vit.mask2former",
+    "sam": "vit.sam",
 
     # CNN-based
     "deeplabv3": "cnn.deeplabv3",
