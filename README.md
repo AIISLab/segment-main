@@ -67,5 +67,5 @@ Convolutional Neural Networks
 This repository is developed by the CIWA+ team (Fresno State AIIS Lab)
 
 Original Development: Brian Kurzeja [bkur808](https://github.com/bkur808)<br>
-Current development: Laura MS [lauramas6](https://github.com/lauramas6)<br>
+Current development: Laura Mas [lauramas6](https://github.com/lauramas6)<br>
 Main Contributors: Quinten dePfyffer, Alexander Madrigal, Nathaniel Madrigal
